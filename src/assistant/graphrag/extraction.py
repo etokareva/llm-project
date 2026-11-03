@@ -17,6 +17,12 @@ from assistant.infra.schemas import (
 
 
 def make_entity(entity_type: str, raw_name: str, names: dict[str, list[str]], codes: set[str]) -> Entity | None:
+    """Нормализует имя сущности и проверяет допустимость.
+
+    Коды должны соответствовать типу сущности и присутствовать среди кодов исходного чанка.
+    Названия приводятся к каноническому виду по словарю names.
+    Возвращает Entity при успешной проверке, иначе None.
+    """
     name = canonical_name(entity_type, raw_name, names)
     if name is None:
         return None
@@ -27,6 +33,13 @@ def make_entity(entity_type: str, raw_name: str, names: dict[str, list[str]], co
     return Entity(type=entity_type, name=name)
 
 def parse_response(content: str) -> dict:
+    """Разбирает JSON-ответ модели и проверяет его структуру.
+
+    Проверяет наличие списков entities и relations, обязательные поля,
+    типы значений и допустимые типы сущностей и связей.
+    Возвращает словарь с разобранными данными.
+    При некорректном JSON или структуре ответа вызывает ValueError.
+    """
     data = json.loads(content)
 
     if not isinstance(data, dict):
