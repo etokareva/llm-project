@@ -2,8 +2,11 @@
 
 import json
 
+from assistant.infra.config import vocabulary
+from assistant.infra.grounding import CODE_TYPES, canonical_name, find_codes
 from assistant.infra.llm import LLMClient
 from assistant.infra.schemas import (
+    ENTITY_TYPES,
     EXTRACTION_SCHEMA,
     RELATION_SIGNATURES,
     Chunk,
@@ -11,6 +14,49 @@ from assistant.infra.schemas import (
     ExtractionResult,
     Relation,
 )
+
+
+def make_entity(entity_type: str, raw_name: str, names: dict[str, list[str]], codes: set[str]) -> Entity | None:
+    name = canonical_name(entity_type, raw_name, names)
+    if name is None:
+        return None
+    
+    if entity_type in CODE_TYPES and name not in codes:
+        return None
+
+    return Entity(type=entity_type, name=name)
+
+def parse_response(content: str) -> dict:
+    data = json.loads(content)
+
+    if not isinstance(data, dict):
+        raise ValueError("Ответ должен быть объектом JSON")
+
+    for key in ("entities", "relations"):
+        if not isinstance(data.get(key), list):
+            raise ValueError(f"Поле {key} должно быть списком")
+
+    for item in data["entities"]:
+        if not isinstance(item, dict):
+            raise ValueError("Сущность должна быть объектом")
+        if item.get("type") not in ENTITY_TYPES:
+            raise ValueError("Неизвестный тип сущности")
+        if not isinstance(item.get("name"), str):
+            raise ValueError("Имя сущности должно быть строкой")
+
+    for item in data["relations"]:
+        if not isinstance(item, dict):
+            raise ValueError("Связь должна быть объектом")
+        if item.get("type") not in RELATION_SIGNATURES:
+            raise ValueError("Неизвестный тип связи")
+        for key in ("subject_type", "object_type"):
+            if item.get(key) not in ENTITY_TYPES:
+                raise ValueError("Неизвестный тип конца связи")
+        for key in ("subject", "object"):
+            if not isinstance(item.get(key), str):
+                raise ValueError("Имя конца связи должно быть строкой")
+
+    return data
 
 
 def extract_chunk(chunk: Chunk, llm: LLMClient) -> ExtractionResult:
@@ -44,38 +90,66 @@ def extract_chunk(chunk: Chunk, llm: LLMClient) -> ExtractionResult:
         '"object": "P-1042B"}]}'
     )
 
-    response = llm.chat(
-        [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": chunk.text},
-        ],
-        json_schema=EXTRACTION_SCHEMA,
-    )
-
-    data = json.loads(response.content)
-    entities = [
-        Entity(type=item["type"], name=item["name"])
-        for item in data["entities"]
-    ]
-
-    relations = [
-        Relation(
-            subject=Entity(
-                type=item["subject_type"],
-                name=item["subject"],
-            ),
-            type=item["type"],
-            object=Entity(
-                type=item["object_type"],
-                name=item["object"],
-            ),
+    for attempt in range(2):
+        response = llm.chat(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": chunk.text},
+            ],
+            json_schema=EXTRACTION_SCHEMA,
         )
-        for item in data["relations"]
-    ]
+
+        try:
+            data = parse_response(response.content)
+            break
+        except ValueError:
+            if attempt == 1:
+                return ExtractionResult(
+                    chunk_id=chunk.chunk_id,
+                    doc_id=chunk.doc_id,
+                )
+    
+    names = vocabulary()
+    codes = set(find_codes(chunk.text))
+    dropped = 0
+
+    entities = []
+    for item in data["entities"]:
+        entity = make_entity(item["type"], item["name"], names, codes)
+        if entity is None:
+            dropped += 1
+        else:
+            entities.append(entity)
+
+    relations = []
+    for item in data["relations"]:
+        subject = make_entity(
+            item["subject_type"], item["subject"], names, codes
+        )
+        target = make_entity(
+            item["object_type"], item["object"], names, codes
+        )
+
+        if subject is None or target is None:
+            dropped += 1
+            continue
+
+        relations.append(
+            Relation(
+                subject=subject,
+                type=item["type"],
+                object=target,
+            )
+        )
+
+        for entity in (subject, target):
+            if entity not in entities:
+                entities.append(entity)
 
     return ExtractionResult(
         chunk_id=chunk.chunk_id,
         doc_id=chunk.doc_id,
         entities=entities,
         relations=relations,
+        dropped=dropped,
     )
