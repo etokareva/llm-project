@@ -5,8 +5,37 @@ import networkx as nx
 from assistant.infra.schemas import Entity, ExtractionResult, Relation
 
 
+def build_graph(results: list[ExtractionResult]) -> nx.DiGraph:
+    """Объединяет результаты извлечения в направленный граф знаний.
+
+    Объединяет сущности по Entity.node_id, сохраняя type, name и sources.
+    Добавляет соответствующие схеме связи с атрибутами type, weight и sources.
+    Источники представлены уникальными chunk_id; вес связи равен их числу.
+    Разрешает встречные замены деталей и записывает число конфликтующих пар
+    в graph.graph["conflicts"]. Возвращает построенный граф.
+    """
+
+    graph = nx.DiGraph()
+
+    for result in results:
+        for entity in result.entities:
+            add_entity(graph, entity, result.chunk_id)
+
+        for relation in result.relations:
+            add_relation(graph, relation, result.chunk_id)
+
+    graph.graph["conflicts"] = resolve_replacement_conflicts(graph)
+
+    return graph
+
+
 def add_entity(graph: nx.DiGraph, entity: Entity, chunk_id: str) -> None:
-    """Добавляет сущность в граф и сохраняет источник без повторов."""
+    """Добавляет узел сущности или дополняет его источники.
+
+    Использует Entity.node_id как идентификатор узла. При создании сохраняет
+    type, name и список sources. Добавляет chunk_id в sources без повторов.
+    Изменяет переданный граф.
+    """
     node_id = entity.node_id
 
     if node_id not in graph:
@@ -23,7 +52,14 @@ def add_entity(graph: nx.DiGraph, entity: Entity, chunk_id: str) -> None:
 
 
 def add_relation(graph: nx.DiGraph, relation: Relation, chunk_id: str) -> None:
-    """Добавляет допустимую связь и считает вес по уникальным источникам."""
+    """Добавляет связь, соответствующую схеме, и обновляет её источники и вес.
+
+    Пропускает связь, если Relation.matches_schema() возвращает False.
+    Сохраняет тип связи и уникальные chunk_id в sources.
+    Вес weight равен числу уникальных источников.
+    Ожидает, что узлы обоих концов уже добавлены с атрибутами.
+    Изменяет переданный граф.
+    """
     if not relation.matches_schema():
         return
 
@@ -47,9 +83,12 @@ def add_relation(graph: nx.DiGraph, relation: Relation, chunk_id: str) -> None:
 
 
 def resolve_replacement_conflicts(graph: nx.DiGraph) -> int:
-    """Разрешает встречные REPLACED_BY и возвращает число конфликтующих пар.
+    """Удаляет противоречащие друг другу связи замены деталей.
 
-    Сохраняет связь с большим весом. При равных весах удаляет обе.
+    Конфликтом считается пара разных узлов с REPLACED_BY в обе стороны.
+    Сохраняет направление с большим весом; при равных весах удаляет обе связи.
+    Каждую конфликтующую пару учитывает один раз.
+    Изменяет переданный граф и возвращает число найденных конфликтов.
     """
     conflicts = 0
     checked: set[frozenset[str]] = set()
@@ -84,27 +123,3 @@ def resolve_replacement_conflicts(graph: nx.DiGraph) -> int:
             graph.remove_edge(object_id, subject_id)
 
     return conflicts
-
-
-def build_graph(results: list[ExtractionResult]) -> nx.DiGraph:
-    """Объединяет результаты по всем чанкам в один направленный граф.
-    Узел: идентификатор `Entity.node_id`, атрибуты `type`, `name`, `sources` (список chunk_id).
-    Ребро: атрибуты `type`, `weight` (число разных чанков, где связь найдена), `sources`.
-    Связи, не соответствующие схеме (`Relation.matches_schema`), отбрасываются. Если между двумя
-    деталями есть `REPLACED_BY` в обе стороны, остаётся связь с большим весом, при равенстве
-    отбрасываются обе. Число таких конфликтов записывается в `graph.graph["conflicts"]`.
-    """
-    # TODO: узлы, рёбра с весами, проверка схемы, разбор встречных замен
-    
-    graph = nx.DiGraph()
-
-    for result in results:
-        for entity in result.entities:
-            add_entity(graph, entity, result.chunk_id)
-
-        for relation in result.relations:
-            add_relation(graph, relation, result.chunk_id)
-
-    graph.graph["conflicts"] = resolve_replacement_conflicts(graph)
-
-    return graph
