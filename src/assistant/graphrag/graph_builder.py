@@ -87,12 +87,15 @@ def resolve_replacement_conflicts(graph: nx.DiGraph) -> int:
 
 
 def build_graph(results: list[ExtractionResult]) -> nx.DiGraph:
-    """Объединяет результаты извлечения в направленный граф знаний.
-
-    Узлы содержат type, name и sources. Связи содержат type, weight и sources.
-    Вес связи равен числу уникальных чанков, где она найдена.
-    Число конфликтующих пар замен сохраняется в graph.graph["conflicts"].
+    """Объединяет результаты по всем чанкам в один направленный граф.
+    Узел: идентификатор `Entity.node_id`, атрибуты `type`, `name`, `sources` (список chunk_id).
+    Ребро: атрибуты `type`, `weight` (число разных чанков, где связь найдена), `sources`.
+    Связи, не соответствующие схеме (`Relation.matches_schema`), отбрасываются. Если между двумя
+    деталями есть `REPLACED_BY` в обе стороны, остаётся связь с большим весом, при равенстве
+    отбрасываются обе. Число таких конфликтов записывается в `graph.graph["conflicts"]`.
     """
+    # TODO: узлы, рёбра с весами, проверка схемы, разбор встречных замен
+    
     graph = nx.DiGraph()
 
     for result in results:
@@ -103,5 +106,5 @@ def build_graph(results: list[ExtractionResult]) -> nx.DiGraph:
             add_relation(graph, relation, result.chunk_id)
 
     graph.graph["conflicts"] = resolve_replacement_conflicts(graph)
-    
+
     return graph
