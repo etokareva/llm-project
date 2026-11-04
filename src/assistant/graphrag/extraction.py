@@ -71,18 +71,9 @@ def parse_response(content: str) -> dict:
 
     return data
 
-
-def extract_chunk(chunk: Chunk, llm: LLMClient) -> ExtractionResult:
-    """Возвращает сущности и связи чанка строго по схеме графа.
-
-    Модель вызывается через `llm.chat(..., json_schema=EXTRACTION_SCHEMA)`. Запрос описывает схему
-    с направлением каждой связи и содержит хотя бы один пример. Всё, что не подтверждается текстом,
-    отбрасывается и считается в `dropped`: код, которого нет в чанке, название не из словаря,
-    связь с отброшенным концом. Пригодятся `find_codes` и `canonical_name` из `assistant.infra.grounding`.
-    Функция не падает ни на каком ответе модели: одна повторная попытка, затем пустой результат.
-    """
-    # TODO: запрос к модели, разбор JSON, проверки по тексту чанка и словарю
-
+def build_extraction_prompt() -> str:
+    """Составляет инструкцию с направлениями связей и примером извлечения."""
+    
     relation_rules = "\n".join(
         f"{name}: {start} -> {end}"
         for name, (start, end) in RELATION_SIGNATURES.items()
@@ -103,25 +94,39 @@ def extract_chunk(chunk: Chunk, llm: LLMClient) -> ExtractionResult:
         '"object": "P-1042B"}]}'
     )
 
-    for attempt in range(2):
+    return system_prompt
+
+def request_extraction(text: str, llm: LLMClient) -> dict | None:
+    """Запрашивает извлечение, повторяя попытку при некорректном ответе.
+
+    Возвращает проверенный словарь или None после двух неудачных ответов.
+    Ошибки обращения к сервису модели передаются вызывающему коду.
+    """
+    
+    messages = [
+        {"role": "system", "content": build_extraction_prompt()},
+        {"role": "user", "content": text},
+    ]
+
+    for _ in range(2):
         response = llm.chat(
-            [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": chunk.text},
-            ],
+            messages,
             json_schema=EXTRACTION_SCHEMA,
         )
-
         try:
-            data = parse_response(response.content)
-            break
+            return parse_response(response.content)
         except ValueError:
-            if attempt == 1:
-                return ExtractionResult(
-                    chunk_id=chunk.chunk_id,
-                    doc_id=chunk.doc_id,
-                )
-    
+            continue
+
+    return None
+
+def build_extraction_result(chunk: Chunk, data: dict) -> ExtractionResult:
+    """Нормализует извлечённые факты и собирает результат с источником.
+
+    Отбрасывает неподтверждённые сущности и связи, учитывая их в dropped.
+    Дополняет список сущностей допустимыми концами принятых связей.
+    """
+
     names = vocabulary()
     codes = set(find_codes(chunk.text))
     dropped = 0
@@ -166,3 +171,24 @@ def extract_chunk(chunk: Chunk, llm: LLMClient) -> ExtractionResult:
         relations=relations,
         dropped=dropped,
     )
+
+def extract_chunk(chunk: Chunk, llm: LLMClient) -> ExtractionResult:
+    """Возвращает сущности и связи чанка строго по схеме графа.
+
+    Модель вызывается через `llm.chat(..., json_schema=EXTRACTION_SCHEMA)`. Запрос описывает схему
+    с направлением каждой связи и содержит хотя бы один пример. Всё, что не подтверждается текстом,
+    отбрасывается и считается в `dropped`: код, которого нет в чанке, название не из словаря,
+    связь с отброшенным концом. Пригодятся `find_codes` и `canonical_name` из `assistant.infra.grounding`.
+    Функция не падает ни на каком ответе модели: одна повторная попытка, затем пустой результат.
+    """
+    # TODO: запрос к модели, разбор JSON, проверки по тексту чанка и словарю
+
+    data = request_extraction(chunk.text, llm)
+
+    if data is None:
+        return ExtractionResult(
+            chunk_id=chunk.chunk_id,
+            doc_id=chunk.doc_id,
+        )
+
+    return build_extraction_result(chunk, data)
