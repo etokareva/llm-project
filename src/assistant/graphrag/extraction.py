@@ -54,6 +54,7 @@ def request_extraction(text: str, llm: LLMClient) -> dict | None:
         response = llm.chat(
             messages,
             json_schema=EXTRACTION_SCHEMA,
+            max_tokens=4096,
         )
         try:
             return parse_response(response.content)
