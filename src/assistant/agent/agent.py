@@ -151,11 +151,16 @@ def finalize_answer(
                 refused=True,
             )
 
+    refused = (
+        tools_report_no_data(steps)
+        or "не найдено" in text.lower()
+    )
+
     return AgentResult(
         answer=text,
         steps=list(steps),
         sources=sorted(sources),
-        refused="не найдено" in text.lower(),
+        refused=refused,
     )
 
 
@@ -402,3 +407,41 @@ def quantity_is_explicit(question: str, qty: int) -> bool:
 
     quantities = re.findall(r"(?<!\w)[0-9]+(?!\w)", text)
     return str(qty) in quantities
+
+
+def tools_report_no_data(steps: list[ToolStep]) -> bool:
+    """Определяет отсутствие данных по структурированным результатам.
+
+    Возвращает True, если инструменты сообщили об отсутствии данных
+    и ни один успешный вызов не предоставил содержательного результата.
+    Нулевой остаток считается полученными данными.
+    """
+    no_data = False
+    has_data = False
+
+    for step in steps:
+        result = step.result
+        if result is None:
+            continue
+
+        if result.get("error_type") == "not_found":
+            no_data = True
+            continue
+
+        if step.error is not None:
+            continue
+
+        if result.get("refused") is True:
+            no_data = True
+            continue
+
+        if step.tool in ("search_knowledge", "summarize_topic"):
+            has_data = has_data or bool(result.get("answer"))
+        elif step.tool == "get_price":
+            has_data = has_data or "price_rub" in result
+        elif step.tool == "check_stock":
+            has_data = has_data or "qty" in result
+        elif step.tool == "create_service_order":
+            has_data = has_data or "order_id" in result
+
+    return no_data and not has_data

@@ -270,6 +270,9 @@ def call_erp(operation: Callable[..., dict], **arguments) -> dict:
     try:
         return operation(**arguments)
     except ErpNotFound as error:
-        return {"error": f"Данные в ERP не найдены: {error}"}
+        return {
+            "error": f"Данные в ERP не найдены: {error}",
+            "error_type": "not_found",
+        }
     except ErpRejected as error:
         return {"error": f"Запрос отклонён ERP: {error}"}
