@@ -12,6 +12,7 @@ from assistant.infra.schemas import KnowledgeBase
 # Описания пяти инструментов в формате function calling:
 # search_knowledge, summarize_topic, check_stock, get_price, create_service_order.
 WAREHOUSES = ["Москва", "Санкт-Петербург", "Казань", "Новосибирск"]
+PART_ID_PATTERN = r"^P-[0-9]{4}[A-Z]?$"
 
 TOOL_SCHEMAS: list[dict] = [
     {
@@ -60,7 +61,7 @@ TOOL_SCHEMAS: list[dict] = [
                 "properties": {
                     "part_id": {
                         "type": "string",
-                        "pattern": "^P-[0-9]{4}[A-Z]?$",
+                        "pattern": PART_ID_PATTERN,
                         "description": "Код детали, например P-1042B.",
                     },
                     "warehouse": {
@@ -83,7 +84,7 @@ TOOL_SCHEMAS: list[dict] = [
                 "properties": {
                     "part_id": {
                         "type": "string",
-                        "pattern": "^P-[0-9]{4}[A-Z]?$",
+                        "pattern": PART_ID_PATTERN,
                         "description": "Код детали, например P-1042B.",
                     },
                 },
@@ -106,7 +107,7 @@ TOOL_SCHEMAS: list[dict] = [
                 "properties": {
                     "part_id": {
                         "type": "string",
-                        "pattern": "^P-[0-9]{4}[A-Z]?$",
+                        "pattern": PART_ID_PATTERN,
                     },
                     "warehouse": {
                         "type": "string",
@@ -241,7 +242,7 @@ def create_service_order(
 
 def validate_part_id(part_id: str) -> str | None:
     """Возвращает описание ошибки формата кода детали или None."""
-    if not isinstance(part_id, str) or not re.fullmatch(r"P-[0-9]{4}[A-Z]?", part_id):
+    if not isinstance(part_id, str) or not re.fullmatch(PART_ID_PATTERN, part_id):
         return "Код детали должен иметь вид P-1042 или P-1042B."
 
     return None

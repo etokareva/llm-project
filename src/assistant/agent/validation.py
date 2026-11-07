@@ -8,18 +8,21 @@ from assistant.agent.tools import TOOL_SCHEMAS
 from assistant.infra.grounding import find_codes, normalize_code
 from assistant.infra.schemas import ToolStep
 
-NUMBER = r"(?<![\w.,-])((?:[0-9]{1,3}(?:[ \u00a0\u202f][0-9]{3})+|[0-9]+)(?:[.,][0-9]+)?)(?![\w-]|[.,][0-9])"
+NUMBER = (
+    r"(?<![\w.,+\-−])([+\-−]?\s*(?:[0-9]{1,3}(?:[ \u00a0\u202f][0-9]{3})+|[0-9]+)"
+    r"(?:[.,][0-9]+)?)(?![\w-]|[.,][0-9])"
+)
 PRICE_PATTERNS = (
     re.compile(NUMBER + r"\s*(?:руб(?:лей|ля|ль)?\.?|₽)", re.IGNORECASE),
-    re.compile(r"\bцен[аыу]\s*(?::|=|—|-|составляет)?\s*" + NUMBER, re.IGNORECASE),
+    re.compile(r"\bцен[аыу]\s*(?::|=|—|составляет)?\s*" + NUMBER, re.IGNORECASE),
 )
 QUANTITY_PATTERNS = (
     re.compile(NUMBER + r"\s*(?:штук[аи]?|шт\.?)(?!\w)", re.IGNORECASE),
     re.compile(
-        r"\bостат(?:ок|ка)\b(?:\s+на\s+складе)?\s*(?::|=|—|-|составляет|равен)?\s*" + NUMBER,
+        r"\bостат(?:ок|ка)\b(?:\s+на\s+складе)?\s*(?::|=|—|составляет|равен)?\s*" + NUMBER,
         re.IGNORECASE,
     ),
-    re.compile(r"\bв\s+наличии\s*(?::|=|—|-)?\s*" + NUMBER, re.IGNORECASE),
+    re.compile(r"\bв\s+наличии\s*(?::|=|—)?\s*" + NUMBER, re.IGNORECASE),
 )
 ORDER_CODE = re.compile(r"\bSO-[0-9]+\b", re.IGNORECASE)
 CODE_CANDIDATE = re.compile(r"[A-Za-zА-Яа-яЁё]{1,2}[- ]?[0-9]{2,4}[A-Za-zА-Яа-яЁё]?")
@@ -87,7 +90,7 @@ def quantity_is_explicit(question: str, qty: int) -> bool:
 
 def normalize_number(value: str) -> str:
     """Нормализует десятичное число без потери точности через float."""
-    number = Decimal(re.sub(r"\s+", "", value).replace(",", "."))
+    number = Decimal(re.sub(r"\s+", "", value).replace(",", ".").replace("−", "-"))
     return format(number, "f").rstrip("0").rstrip(".") if number % 1 else str(int(number))
 
 
@@ -121,6 +124,8 @@ def find_answer_errors(text: str, question: str, steps: list[ToolStep]) -> list[
     question_prices, question_quantities = extract_answer_numbers(question)
     answer_prices, answer_quantities = extract_answer_numbers(text)
     errors = [f"неизвестный код {code}" for code in sorted(answer_codes - known_codes)]
+    errors.extend(f"отрицательная цена {value}" for value in sorted(answer_prices) if Decimal(value) < 0)
+    errors.extend(f"отрицательное количество {value}" for value in sorted(answer_quantities) if Decimal(value) < 0)
     errors.extend(f"неподтверждённая цена {value}" for value in sorted(answer_prices - prices - question_prices))
     errors.extend(
         f"неподтверждённое количество {value}" for value in sorted(answer_quantities - quantities - question_quantities)

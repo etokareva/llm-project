@@ -96,8 +96,7 @@ def run_agent(
                         result={"needs_confirmation": pause.needs_confirmation},
                     ),
                 ]
-                pause.sources = sorted(sources)
-                return pause
+                return complete_result(pause, pause.steps, sources)
 
             step = execute_cached_tool(
                 call,
@@ -108,13 +107,16 @@ def run_agent(
 
     observations = [step.result for step in steps if step.error is None and step.result is not None]
 
-    return AgentResult(
-        answer=(
-            "Работа прервана: достигнут лимит вызовов инструментов. "
-            "Полученные данные: " + json.dumps(observations, ensure_ascii=False)
+    return complete_result(
+        AgentResult(
+            answer=(
+                "Работа прервана: достигнут лимит вызовов инструментов. "
+                "Полученные данные: " + json.dumps(observations, ensure_ascii=False)
+            ),
+            refused=tools_report_no_data(steps),
         ),
-        steps=steps,
-        sources=sorted(sources),
+        steps,
+        sources,
     )
 
 
@@ -150,37 +152,52 @@ def finalize_answer(
         text = correction.content
 
         if not text.strip() or correction.tool_calls or find_answer_errors(text, question, steps):
-            return AgentResult(
-                answer=(
-                    "Не удалось подтвердить сведения в ответе. В базе знаний не найдено достаточно проверенных данных."
+            return complete_result(
+                AgentResult(
+                    answer=(
+                        "Не удалось подтвердить сведения в ответе. "
+                        "В базе знаний не найдено достаточно проверенных данных."
+                    ),
+                    refused=True,
                 ),
-                steps=list(steps),
-                sources=sorted(sources),
-                refused=True,
+                steps,
+                sources,
             )
 
     refused = tools_report_no_data(steps) or is_refusal(text)
 
-    if any(step.error and step.error.startswith("Данные ERP получить не удалось:") for step in steps):
-        notice = "Данные ERP получить не удалось."
-        if notice.lower().rstrip(".") not in text.lower():
-            text = f"{text}\n{notice}"
+    return complete_result(AgentResult(answer=text, refused=refused), steps, sources)
+
+
+def complete_result(result: AgentResult, steps: list[ToolStep], sources: set[str]) -> AgentResult:
+    """Завершает любой исход агента с учётом уже выполненных действий и ошибок ERP.
+
+    Сохраняет шаги и источники. Номер созданного заказа не зависит от ответа
+    модели, а недоступность ERP остаётся видимой даже при исчерпании лимита.
+    """
+    result.steps = list(steps)
+    result.sources = sorted(sources)
 
     order_ids = [
         str(step.result["order_id"])
         for step in steps
-        if step.error is None and step.result and "order_id" in step.result
+        if step.tool == "create_service_order" and step.error is None and step.result and "order_id" in step.result
     ]
+    if order_ids and result.refused:
+        result.answer = "Заказ создан. Дополнительные сведения из ответа модели не удалось подтвердить."
+        result.refused = False
+    if result.refused and "в базе знаний не найдено" not in result.answer.lower():
+        result.answer += "\nВ базе знаний не найдено."
     for order_id in dict.fromkeys(order_ids):
-        if order_id not in text:
-            text += f"\nНомер созданного заказа: {order_id}."
+        if order_id not in result.answer:
+            result.answer += f"\nНомер созданного заказа: {order_id}."
 
-    return AgentResult(
-        answer=text,
-        steps=list(steps),
-        sources=sorted(sources),
-        refused=refused,
-    )
+    if any(step.error and step.error.startswith("Данные ERP получить не удалось:") for step in steps):
+        notice = "Данные ERP получить не удалось."
+        if notice.lower().rstrip(".") not in result.answer.lower():
+            result.answer = f"{result.answer}\n{notice}"
+
+    return result
 
 
 def check_order_pause(

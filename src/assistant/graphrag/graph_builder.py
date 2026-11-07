@@ -57,7 +57,7 @@ def add_relation(graph: nx.DiGraph, relation: Relation, chunk_id: str) -> None:
     Пропускает связь, если Relation.matches_schema() возвращает False.
     Сохраняет тип связи и уникальные chunk_id в sources.
     Вес weight равен числу уникальных источников.
-    Ожидает, что узлы обоих концов уже добавлены с атрибутами.
+    Добавляет узлы обоих концов и дополняет их источники.
     Изменяет переданный граф.
     """
     if not relation.matches_schema():
@@ -94,7 +94,6 @@ def resolve_replacement_conflicts(graph: nx.DiGraph) -> int:
     Изменяет переданный граф и возвращает число найденных конфликтов.
     """
     conflicts = 0
-    checked: set[frozenset[str]] = set()
 
     for subject_id, object_id in list(graph.edges):
         if not graph.has_edge(subject_id, object_id):
@@ -103,11 +102,6 @@ def resolve_replacement_conflicts(graph: nx.DiGraph) -> int:
         edge = graph.edges[subject_id, object_id]
         if edge["type"] != "REPLACED_BY" or subject_id == object_id:
             continue
-
-        pair = frozenset((subject_id, object_id))
-        if pair in checked:
-            continue
-        checked.add(pair)
 
         if not graph.has_edge(object_id, subject_id):
             continue

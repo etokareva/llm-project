@@ -111,8 +111,31 @@ def global_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
 
 
 def is_refusal(text: str) -> bool:
-    """Распознаёт явные сообщения об отсутствии сведений, независимо от рода."""
-    return re.search(r"\b(?:не\s+найден[оаы]?|нет\s+(?:данных|сведений|информации))\b", text, re.IGNORECASE) is not None
+    """Распознаёт полный отказ, отделяя его от ответа с частично найденными данными.
+
+    Сообщения об отсутствии данных могут сопровождаться просьбой уточнить
+    вопрос. Самостоятельное утверждение вне этих форм означает частичный
+    ответ. Это проверка текстовых форм, а не смысловой достоверности ответа.
+    """
+    clauses = [
+        part.strip(' ,:—-«»"*')
+        for part in re.split(
+            r"[.!?;\n]+|\b(?:но|однако|зато)\b|,(?=\s*нет\s+(?:данных|сведений|информации)\b)",
+            text,
+            flags=re.I,
+        )
+    ]
+    has_refusal = False
+    for clause in filter(None, clauses):
+        if re.search(r"\b(?:не\s+найден[оаы]?|нет\s+(?:данных|сведений|информации))\b", clause, re.I):
+            has_refusal = True
+        elif not re.match(
+            r"(?:пожалуйста[,\s]+)?(?:уточните|проверьте|предоставьте|попробуйте|обратитесь|сообщите|повторите)\b",
+            clause,
+            re.I,
+        ):
+            return False
+    return has_refusal
 
 
 def find_anchors(question: str, kb: KnowledgeBase) -> list[str] | None:
