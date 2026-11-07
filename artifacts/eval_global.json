@@ -1,7 +1,7 @@
 {
   "summary": {
     "mode": "global",
-    "model": "qwen3:4b-instruct-2507-q4_K_M",
+    "model": "qwen3-4b-instruct-2507-q4_K_M",
     "questions": 24,
     "accuracy": 0.292,
     "by_type": {
@@ -27,10 +27,10 @@
       }
     },
     "fabricated_rate": 0.0,
-    "source_recall": 0.344,
+    "source_recall": 0.397,
     "rejected_calls_rate": 0.0,
-    "llm_calls_per_question": 14.333,
-    "tokens_per_question": 6290.0
+    "llm_calls_per_question": 17.417,
+    "tokens_per_question": 7420.625
   },
   "rows": [
     {
@@ -45,8 +45,8 @@
       "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6127
+      "llm_calls": 17,
+      "tokens": 7203
     },
     {
       "id": "dev-02",
@@ -64,7 +64,6 @@
         "procedure_SP-112.md",
         "report_R-2025-002.md",
         "report_R-2025-007.md",
-        "report_R-2025-011.md",
         "report_R-2025-013.md",
         "report_R-2025-015.md",
         "report_R-2025-018.md",
@@ -79,23 +78,30 @@
       "source_recall": 1.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6262
+      "llm_calls": 18,
+      "tokens": 7331
     },
     {
       "id": "dev-03",
       "type": "local",
       "question": "Кто поставляет деталь P-3062C?",
-      "answer": "В базе знаний не найдено.",
+      "answer": "В базе знаний не найдено",
       "correct": false,
       "refused": true,
       "fabricated": [],
-      "sources": [],
-      "source_recall": 0.0,
+      "sources": [
+        "bulletin_SB-2025-06.md",
+        "bulletin_SB-2025-09.md",
+        "manual_GS-410.md",
+        "manual_GS-420.md",
+        "manual_GS-510.md",
+        "manual_GS-520.md"
+      ],
+      "source_recall": 1.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6107
+      "llm_calls": 18,
+      "tokens": 7325
     },
     {
       "id": "dev-04",
@@ -115,7 +121,6 @@
         "manual_BZ-210.md",
         "manual_BZ-220.md",
         "procedure_SP-108.md",
-        "procedure_SP-110.md",
         "report_R-2025-004.md",
         "report_R-2025-005.md",
         "report_R-2025-008.md",
@@ -133,8 +138,8 @@
       "source_recall": 1.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6310
+      "llm_calls": 18,
+      "tokens": 7405
     },
     {
       "id": "dev-05",
@@ -157,31 +162,58 @@
         "manual_GS-410.md",
         "manual_GS-420.md",
         "manual_GS-510.md",
-        "manual_GS-520.md",
-        "procedure_SP-101.md",
-        "procedure_SP-102.md",
-        "report_R-2025-040.md"
+        "manual_GS-520.md"
       ],
       "source_recall": 1.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6273
+      "llm_calls": 18,
+      "tokens": 7364
     },
     {
       "id": "dev-06",
       "type": "multihop",
       "question": "Какую деталь заказать при ошибке E-17 на AR-210?",
-      "answer": "В базе знаний не найдено.",
+      "answer": "Пусковое реле",
       "correct": false,
-      "refused": true,
+      "refused": false,
       "fabricated": [],
-      "sources": [],
-      "source_recall": 0.0,
+      "sources": [
+        "manual_AR-210.md",
+        "manual_AR-220.md",
+        "manual_AR-310.md",
+        "manual_AR-320.md",
+        "manual_BZ-110.md",
+        "manual_BZ-120.md",
+        "manual_BZ-210.md",
+        "manual_BZ-220.md",
+        "manual_GS-410.md",
+        "manual_GS-420.md",
+        "manual_GS-510.md",
+        "manual_GS-520.md",
+        "procedure_SP-104.md",
+        "procedure_SP-105.md",
+        "report_R-2025-001.md",
+        "report_R-2025-003.md",
+        "report_R-2025-006.md",
+        "report_R-2025-009.md",
+        "report_R-2025-010.md",
+        "report_R-2025-012.md",
+        "report_R-2025-023.md",
+        "report_R-2025-026.md",
+        "report_R-2025-027.md",
+        "report_R-2025-028.md",
+        "report_R-2025-032.md",
+        "report_R-2025-034.md",
+        "report_R-2025-036.md",
+        "report_R-2025-037.md",
+        "report_R-2025-039.md"
+      ],
+      "source_recall": 0.75,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6146
+      "llm_calls": 18,
+      "tokens": 7426
     },
     {
       "id": "dev-07",
@@ -199,7 +231,6 @@
         "procedure_SP-112.md",
         "report_R-2025-002.md",
         "report_R-2025-007.md",
-        "report_R-2025-011.md",
         "report_R-2025-013.md",
         "report_R-2025-015.md",
         "report_R-2025-018.md",
@@ -214,8 +245,8 @@
       "source_recall": 1.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6310
+      "llm_calls": 18,
+      "tokens": 7405
     },
     {
       "id": "dev-08",
@@ -229,8 +260,8 @@
       "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6265
+      "llm_calls": 17,
+      "tokens": 7389
     },
     {
       "id": "dev-09",
@@ -240,36 +271,12 @@
       "correct": false,
       "refused": true,
       "fabricated": [],
-      "sources": [
-        "manual_AR-210.md",
-        "manual_AR-220.md",
-        "manual_AR-310.md",
-        "manual_AR-320.md",
-        "manual_BZ-110.md",
-        "manual_BZ-120.md",
-        "manual_BZ-210.md",
-        "manual_BZ-220.md",
-        "procedure_SP-108.md",
-        "procedure_SP-110.md",
-        "report_R-2025-004.md",
-        "report_R-2025-005.md",
-        "report_R-2025-008.md",
-        "report_R-2025-014.md",
-        "report_R-2025-016.md",
-        "report_R-2025-017.md",
-        "report_R-2025-020.md",
-        "report_R-2025-021.md",
-        "report_R-2025-024.md",
-        "report_R-2025-030.md",
-        "report_R-2025-033.md",
-        "report_R-2025-038.md",
-        "report_R-2025-040.md"
-      ],
-      "source_recall": 0.5,
+      "sources": [],
+      "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6622
+      "llm_calls": 17,
+      "tokens": 7436
     },
     {
       "id": "dev-10",
@@ -279,36 +286,12 @@
       "correct": false,
       "refused": true,
       "fabricated": [],
-      "sources": [
-        "manual_AR-210.md",
-        "manual_AR-220.md",
-        "manual_AR-310.md",
-        "manual_AR-320.md",
-        "manual_BZ-110.md",
-        "manual_BZ-120.md",
-        "manual_BZ-210.md",
-        "manual_BZ-220.md",
-        "procedure_SP-108.md",
-        "procedure_SP-110.md",
-        "report_R-2025-004.md",
-        "report_R-2025-005.md",
-        "report_R-2025-008.md",
-        "report_R-2025-014.md",
-        "report_R-2025-016.md",
-        "report_R-2025-017.md",
-        "report_R-2025-020.md",
-        "report_R-2025-021.md",
-        "report_R-2025-024.md",
-        "report_R-2025-030.md",
-        "report_R-2025-033.md",
-        "report_R-2025-038.md",
-        "report_R-2025-040.md"
-      ],
-      "source_recall": 1.0,
+      "sources": [],
+      "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6693
+      "llm_calls": 17,
+      "tokens": 7381
     },
     {
       "id": "dev-11",
@@ -322,29 +305,59 @@
       "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6237
+      "llm_calls": 17,
+      "tokens": 7351
     },
     {
       "id": "dev-12",
       "type": "multihop",
       "question": "Деталь какого поставщика нужна при ошибке E-14 на AR-320?",
-      "answer": "В базе знаний не найдено.",
+      "answer": "В базе знаний не найдено",
       "correct": false,
       "refused": true,
       "fabricated": [],
-      "sources": [],
-      "source_recall": 0.0,
+      "sources": [
+        "manual_AR-210.md",
+        "manual_AR-220.md",
+        "manual_AR-310.md",
+        "manual_AR-320.md",
+        "manual_BZ-110.md",
+        "manual_BZ-120.md",
+        "manual_BZ-210.md",
+        "manual_BZ-220.md",
+        "manual_GS-410.md",
+        "manual_GS-420.md",
+        "manual_GS-510.md",
+        "manual_GS-520.md",
+        "procedure_SP-104.md",
+        "procedure_SP-105.md",
+        "report_R-2025-001.md",
+        "report_R-2025-003.md",
+        "report_R-2025-006.md",
+        "report_R-2025-009.md",
+        "report_R-2025-010.md",
+        "report_R-2025-012.md",
+        "report_R-2025-023.md",
+        "report_R-2025-026.md",
+        "report_R-2025-027.md",
+        "report_R-2025-028.md",
+        "report_R-2025-032.md",
+        "report_R-2025-034.md",
+        "report_R-2025-036.md",
+        "report_R-2025-037.md",
+        "report_R-2025-039.md"
+      ],
+      "source_recall": 0.6,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6209
+      "llm_calls": 18,
+      "tokens": 7487
     },
     {
       "id": "dev-13",
       "type": "global",
       "question": "Какой узел чаще всего отказывает в линейке «Арктика»?",
-      "answer": "Пусковое реле",
+      "answer": "Пусковое реле чаще всего отказывает в линейке «Арктика».",
       "correct": true,
       "refused": false,
       "fabricated": [],
@@ -382,8 +395,8 @@
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6368
+      "llm_calls": 18,
+      "tokens": 7757
     },
     {
       "id": "dev-14",
@@ -401,7 +414,6 @@
         "procedure_SP-112.md",
         "report_R-2025-002.md",
         "report_R-2025-007.md",
-        "report_R-2025-011.md",
         "report_R-2025-013.md",
         "report_R-2025-015.md",
         "report_R-2025-018.md",
@@ -416,23 +428,46 @@
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 15,
-      "tokens": 6368
+      "llm_calls": 18,
+      "tokens": 7483
     },
     {
       "id": "dev-15",
       "type": "global",
       "question": "У какой модели линейки «Бриз» больше всего отказов?",
-      "answer": "В базе знаний не найдено.",
+      "answer": "У всех моделей линейки «Бриз» одинаковое количество отказов, так как они имеют одинаковый суммарный вес FAILED (6) и содержат одну и ту же деталь, которая является причиной ошибки E-18. Следовательно, ни одна модель не имеет больше отказов, чем другие.\n\nОтвет: У всех моделей линейки «Бриз» одинаковое количество отказов, поэтому ни у одной модели не больше всего отказов.",
       "correct": false,
-      "refused": true,
+      "refused": false,
       "fabricated": [],
-      "sources": [],
+      "sources": [
+        "manual_AR-210.md",
+        "manual_AR-220.md",
+        "manual_AR-310.md",
+        "manual_AR-320.md",
+        "manual_BZ-110.md",
+        "manual_BZ-120.md",
+        "manual_BZ-210.md",
+        "manual_BZ-220.md",
+        "procedure_SP-108.md",
+        "report_R-2025-004.md",
+        "report_R-2025-005.md",
+        "report_R-2025-008.md",
+        "report_R-2025-014.md",
+        "report_R-2025-016.md",
+        "report_R-2025-017.md",
+        "report_R-2025-020.md",
+        "report_R-2025-021.md",
+        "report_R-2025-024.md",
+        "report_R-2025-030.md",
+        "report_R-2025-033.md",
+        "report_R-2025-038.md",
+        "report_R-2025-040.md"
+      ],
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6146
+      "llm_calls": 18,
+      "tokens": 7723
     },
     {
       "id": "dev-16",
@@ -446,8 +481,8 @@
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6237
+      "llm_calls": 17,
+      "tokens": 7352
     },
     {
       "id": "dev-17",
@@ -461,8 +496,8 @@
       "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6447
+      "llm_calls": 17,
+      "tokens": 7607
     },
     {
       "id": "dev-18",
@@ -476,8 +511,8 @@
       "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6489
+      "llm_calls": 17,
+      "tokens": 7658
     },
     {
       "id": "dev-19",
@@ -491,8 +526,8 @@
       "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6271
+      "llm_calls": 17,
+      "tokens": 7385
     },
     {
       "id": "dev-20",
@@ -506,8 +541,8 @@
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6279
+      "llm_calls": 17,
+      "tokens": 7403
     },
     {
       "id": "dev-21",
@@ -521,8 +556,8 @@
       "source_recall": 0.0,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6405
+      "llm_calls": 17,
+      "tokens": 7556
     },
     {
       "id": "dev-22",
@@ -536,8 +571,8 @@
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6125
+      "llm_calls": 17,
+      "tokens": 7211
     },
     {
       "id": "dev-23",
@@ -551,8 +586,8 @@
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6153
+      "llm_calls": 17,
+      "tokens": 7269
     },
     {
       "id": "dev-24",
@@ -566,8 +601,8 @@
       "source_recall": null,
       "steps": [],
       "rejected_steps": 0,
-      "llm_calls": 14,
-      "tokens": 6111
+      "llm_calls": 17,
+      "tokens": 7188
     }
   ]
 }
