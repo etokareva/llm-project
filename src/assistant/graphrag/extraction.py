@@ -44,7 +44,7 @@ def request_extraction(text: str, llm: LLMClient) -> dict | None:
     Возвращает разобранный словарь либо None после двух некорректных ответов.
     Ошибки обращения к сервису модели передаёт вызывающему коду.
     """
-    
+
     messages = [
         {"role": "system", "content": build_extraction_prompt()},
         {"role": "user", "content": text},
@@ -70,11 +70,8 @@ def build_extraction_prompt() -> str:
     Включает допустимые связи с типами их начала и конца, запрет на выдуманные
     факты и пример JSON-ответа для замены одной детали другой.
     """
-    
-    relation_rules = "\n".join(
-        f"{name}: {start} -> {end}"
-        for name, (start, end) in RELATION_SIGNATURES.items()
-    )
+
+    relation_rules = "\n".join(f"{name}: {start} -> {end}" for name, (start, end) in RELATION_SIGNATURES.items())
 
     system_prompt = (
         "Извлеки сущности и связи из документа. "
@@ -114,7 +111,7 @@ def parse_response(content: str) -> dict:
     for item in data["entities"]:
         if not isinstance(item, dict):
             raise ValueError("Сущность должна быть объектом")
-        if item.get("type") not in ENTITY_TYPES:
+        if not isinstance(item.get("type"), str) or item["type"] not in ENTITY_TYPES:
             raise ValueError("Неизвестный тип сущности")
         if not isinstance(item.get("name"), str):
             raise ValueError("Имя сущности должно быть строкой")
@@ -123,13 +120,10 @@ def parse_response(content: str) -> dict:
         if not isinstance(item, dict):
             raise ValueError("Связь должна быть объектом")
         relation_type = item.get("type")
-        if (
-            not isinstance(relation_type, str)
-            or relation_type not in RELATION_SIGNATURES
-        ):
+        if not isinstance(relation_type, str) or relation_type not in RELATION_SIGNATURES:
             raise ValueError("Неизвестный тип связи")
         for key in ("subject_type", "object_type"):
-            if item.get(key) not in ENTITY_TYPES:
+            if not isinstance(item.get(key), str) or item[key] not in ENTITY_TYPES:
                 raise ValueError("Неизвестный тип конца связи")
         for key in ("subject", "object"):
             if not isinstance(item.get(key), str):
@@ -152,22 +146,18 @@ def build_extraction_result(chunk: Chunk, data: dict) -> ExtractionResult:
     codes = set(find_codes(chunk.text))
     dropped = 0
 
-    entities = []
+    entities: dict[str, Entity] = {}
     for item in data["entities"]:
         entity = make_entity(item["type"], item["name"], names, codes)
         if entity is None:
             dropped += 1
         else:
-            entities.append(entity)
+            entities[entity.node_id] = entity
 
     relations = []
     for item in data["relations"]:
-        subject = make_entity(
-            item["subject_type"], item["subject"], names, codes
-        )
-        target = make_entity(
-            item["object_type"], item["object"], names, codes
-        )
+        subject = make_entity(item["subject_type"], item["subject"], names, codes)
+        target = make_entity(item["object_type"], item["object"], names, codes)
 
         if subject is None or target is None:
             dropped += 1
@@ -182,13 +172,12 @@ def build_extraction_result(chunk: Chunk, data: dict) -> ExtractionResult:
         )
 
         for entity in (subject, target):
-            if entity not in entities:
-                entities.append(entity)
+            entities[entity.node_id] = entity
 
     return ExtractionResult(
         chunk_id=chunk.chunk_id,
         doc_id=chunk.doc_id,
-        entities=entities,
+        entities=list(entities.values()),
         relations=relations,
         dropped=dropped,
     )
@@ -204,7 +193,7 @@ def make_entity(entity_type: str, raw_name: str, names: dict[str, list[str]], co
     name = canonical_name(entity_type, raw_name, names)
     if name is None:
         return None
-    
+
     if entity_type in CODE_TYPES and name not in codes:
         return None
 

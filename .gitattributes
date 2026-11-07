@@ -1,0 +1,11 @@
+# Текстовые файлы хранятся и извлекаются с окончаниями LF.
+* text=auto eol=lf
+
+# Двоичные файлы не преобразуются.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.zip binary
+*.gguf binary

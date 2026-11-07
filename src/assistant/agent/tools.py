@@ -18,10 +18,7 @@ TOOL_SCHEMAS: list[dict] = [
         "type": "function",
         "function": {
             "name": "search_knowledge",
-            "description": (
-                "Найти по документам сведения о моделях, ошибках, "
-                "деталях и их актуальных заменах."
-            ),
+            "description": ("Найти по документам сведения о моделях, ошибках, деталях и их актуальных заменах."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -39,9 +36,7 @@ TOOL_SCHEMAS: list[dict] = [
         "type": "function",
         "function": {
             "name": "summarize_topic",
-            "description": (
-                "Ответить на обзорный вопрос по сводкам сообществ графа."
-            ),
+            "description": ("Ответить на обзорный вопрос по сводкам сообществ графа."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -59,10 +54,7 @@ TOOL_SCHEMAS: list[dict] = [
         "type": "function",
         "function": {
             "name": "check_stock",
-            "description": (
-                "Получить остаток детали на выбранном складе "
-                "и признак снятия с производства."
-            ),
+            "description": ("Получить остаток детали на выбранном складе и признак снятия с производства."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -85,10 +77,7 @@ TOOL_SCHEMAS: list[dict] = [
         "type": "function",
         "function": {
             "name": "get_price",
-            "description": (
-                "Получить текущую цену детали в рублях "
-                "и признак снятия с производства."
-            ),
+            "description": ("Получить текущую цену детали в рублях и признак снятия с производства."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -238,9 +227,7 @@ def create_service_order(
     if type(qty) is not int or qty <= 0:
         return {"error": "Количество должно быть положительным целым числом."}
 
-    if not isinstance(model, str) or not re.fullmatch(
-        r"(?:AR|BZ|GS)-[0-9]{3}", model
-    ):
+    if not isinstance(model, str) or not re.fullmatch(r"(?:AR|BZ|GS)-[0-9]{3}", model):
         return {"error": "Некорректный код модели оборудования."}
 
     return call_erp(
@@ -254,9 +241,7 @@ def create_service_order(
 
 def validate_part_id(part_id: str) -> str | None:
     """Возвращает описание ошибки формата кода детали или None."""
-    if not isinstance(part_id, str) or not re.fullmatch(
-        r"P-[0-9]{4}[A-Z]?", part_id
-    ):
+    if not isinstance(part_id, str) or not re.fullmatch(r"P-[0-9]{4}[A-Z]?", part_id):
         return "Код детали должен иметь вид P-1042 или P-1042B."
 
     return None

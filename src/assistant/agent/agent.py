@@ -1,13 +1,18 @@
 """Цикл агента. Требования FR-7, FR-8, FR-9 и FR-10."""
 
-import inspect
 import json
-import re
 from collections.abc import Callable
+from copy import deepcopy
 
 from assistant.agent.tools import TOOL_SCHEMAS
+from assistant.agent.validation import (
+    collect_known_codes,
+    find_answer_errors,
+    quantity_is_explicit,
+    validate_tool_call,
+)
+from assistant.graphrag.search import is_refusal
 from assistant.infra.erp_client import ErpUnavailable
-from assistant.infra.grounding import find_codes
 from assistant.infra.llm import LLMClient, ToolCall, tool_message
 from assistant.infra.schemas import AgentResult, ToolStep
 
@@ -83,7 +88,14 @@ def run_agent(
 
             pause = check_order_pause(question, call, confirm)
             if pause is not None:
-                pause.steps = list(steps)
+                pause.steps = [
+                    *steps,
+                    ToolStep(
+                        tool=call.name,
+                        args=dict(call.arguments),
+                        result={"needs_confirmation": pause.needs_confirmation},
+                    ),
+                ]
                 pause.sources = sorted(sources)
                 return pause
 
@@ -94,17 +106,12 @@ def run_agent(
             )
             record_tool_step(call, step, steps, messages, sources)
 
-    observations = [
-        step.result
-        for step in steps
-        if step.error is None and step.result is not None
-    ]
+    observations = [step.result for step in steps if step.error is None and step.result is not None]
 
     return AgentResult(
         answer=(
             "Работа прервана: достигнут лимит вызовов инструментов. "
-            "Полученные данные: "
-            + json.dumps(observations, ensure_ascii=False)
+            "Полученные данные: " + json.dumps(observations, ensure_ascii=False)
         ),
         steps=steps,
         sources=sorted(sources),
@@ -124,6 +131,8 @@ def finalize_answer(
     При повторном расхождении возвращает отказ без неподтверждённых фактов.
     """
     errors = find_answer_errors(text, question, steps)
+    if not text.strip():
+        errors.append("пустой ответ")
 
     if errors:
         messages.append(
@@ -140,21 +149,31 @@ def finalize_answer(
         correction = llm.chat(messages)
         text = correction.content
 
-        if correction.tool_calls or find_answer_errors(text, question, steps):
+        if not text.strip() or correction.tool_calls or find_answer_errors(text, question, steps):
             return AgentResult(
                 answer=(
-                    "Не удалось подтвердить сведения в ответе. "
-                    "В базе знаний не найдено достаточно проверенных данных."
+                    "Не удалось подтвердить сведения в ответе. В базе знаний не найдено достаточно проверенных данных."
                 ),
                 steps=list(steps),
                 sources=sorted(sources),
                 refused=True,
             )
 
-    refused = (
-        tools_report_no_data(steps)
-        or "не найдено" in text.lower()
-    )
+    refused = tools_report_no_data(steps) or is_refusal(text)
+
+    if any(step.error and step.error.startswith("Данные ERP получить не удалось:") for step in steps):
+        notice = "Данные ERP получить не удалось."
+        if notice.lower().rstrip(".") not in text.lower():
+            text = f"{text}\n{notice}"
+
+    order_ids = [
+        str(step.result["order_id"])
+        for step in steps
+        if step.error is None and step.result and "order_id" in step.result
+    ]
+    for order_id in dict.fromkeys(order_ids):
+        if order_id not in text:
+            text += f"\nНомер созданного заказа: {order_id}."
 
     return AgentResult(
         answer=text,
@@ -162,103 +181,6 @@ def finalize_answer(
         sources=sorted(sources),
         refused=refused,
     )
-
-
-def find_answer_errors(
-    text: str,
-    question: str,
-    steps: list[ToolStep],
-) -> list[str]:
-    """Проверяет коды, цены и количества в итоговом ответе."""
-    known_codes = collect_known_codes(question, steps)
-    prices, quantities = collect_supported_numbers(steps)
-    answer_prices, answer_quantities = extract_answer_numbers(text)
-
-    errors = [
-        f"неизвестный код {code}"
-        for code in find_codes(text)
-        if code not in known_codes
-    ]
-    errors.extend(
-        f"неподтверждённая цена {value}"
-        for value in sorted(answer_prices - prices)
-    )
-    errors.extend(
-        f"неподтверждённое количество {value}"
-        for value in sorted(answer_quantities - quantities)
-    )
-
-    return errors
-
-
-def extract_answer_numbers(text: str) -> tuple[set[str], set[str]]:
-    """Находит цены и количества в поддерживаемых форматах записи.
-
-    Использует единицы измерения и подписи «цена», «остаток», «в наличии».
-    Возвращает нормализованные значения без повторов.
-    """
-    number = r"([0-9]+(?:[ \u00a0\u202f][0-9]{3})*(?:[.,][0-9]+)?)"
-
-    price_patterns = (
-        number + r"\s*(?:руб(?:лей|ля|ль)?\.?|₽)",
-        r"\bцен[аыу]\s*(?::|=|—|-|составляет)?\s*" + number,
-    )
-    quantity_patterns = (
-        number + r"\s*(?:штук[аи]?|шт\.?)(?!\w)",
-        (
-            r"\bостат(?:ок|ка)\b"
-            r"(?:\s+на\s+складе)?"
-            r"\s*(?::|=|—|-|составляет|равен)?\s*"
-            + number
-        ),
-        r"\bв\s+наличии\s*(?::|=|—|-)?\s*" + number,
-    )
-
-    prices = {
-        normalize_number(value)
-        for pattern in price_patterns
-        for value in re.findall(pattern, text, flags=re.IGNORECASE)
-    }
-    quantities = {
-        normalize_number(value)
-        for pattern in quantity_patterns
-        for value in re.findall(pattern, text, flags=re.IGNORECASE)
-    }
-
-    return prices, quantities
-    
-
-def collect_supported_numbers(
-    steps: list[ToolStep],
-) -> tuple[set[str], set[str]]:
-    """Собирает цены и количества из успешных результатов инструментов."""
-    prices: set[str] = set()
-    quantities: set[str] = set()
-
-    for step in steps:
-        if step.error is not None or step.result is None:
-            continue
-
-        result = step.result
-
-        if step.tool == "get_price" and "price_rub" in result:
-            prices.add(normalize_number(str(result["price_rub"])))
-
-        if (
-            step.tool in ("check_stock", "create_service_order")
-            and "qty" in result
-        ):
-            quantities.add(normalize_number(str(result["qty"])))
-
-    return prices, quantities
-
-
-def normalize_number(value: str) -> str:
-    """Убирает разделители разрядов и нормализует десятичную запись."""
-    compact = re.sub(r"\s+", "", value).replace(",", ".")
-    if "." in compact:
-        compact = compact.rstrip("0").rstrip(".")
-    return compact
 
 
 def check_order_pause(
@@ -315,7 +237,7 @@ def execute_cached_tool(
     return ToolStep(
         tool=call.name,
         args=dict(call.arguments),
-        result=previous.result,
+        result=deepcopy(previous.result),
         error=previous.error,
     )
 
@@ -333,11 +255,7 @@ def record_tool_step(
     if step.error is None and step.result is not None:
         sources.update(step.result.get("sources", []))
 
-    observation = (
-        {"error": step.error}
-        if step.error is not None
-        else step.result
-    )
+    observation = {"error": step.error} if step.error is not None else step.result
     messages.append(tool_message(call, observation))
 
 
@@ -373,71 +291,6 @@ def execute_tool(
         )
 
     raise RuntimeError("Цикл попыток завершился без результата")
-
-
-def validate_tool_call(
-    name: str,
-    arguments: dict,
-    tools: dict[str, Callable[..., dict]],
-    known_codes: set[str],
-) -> str | None:
-    """Проверяет инструмент, аргументы и происхождение номера детали.
-
-    Возвращает описание ошибки или None, если вызов допустим.
-    Подтверждение заказа и количество проверяются отдельно.
-    """
-    if name not in tools:
-        return f"Неизвестный инструмент: {name}."
-
-    if not isinstance(arguments, dict):
-        return "Аргументы инструмента должны быть словарём."
-
-    if "_raw" in arguments:
-        return "Аргументы инструмента не удалось разобрать как JSON."
-
-    try:
-        inspect.signature(tools[name]).bind(**arguments)
-    except TypeError:
-        return "Неверные аргументы инструмента."
-
-    if "part_id" in arguments:
-        part_id = arguments["part_id"]
-
-        if not isinstance(part_id, str) or part_id not in known_codes:
-            return (
-                "Номер детали не встречался в вопросе или результатах "
-                "инструментов. Сначала вызови search_knowledge."
-            )
-
-    return None
-
-
-def collect_known_codes(question: str, steps: list[ToolStep]) -> set[str]:
-    """Собирает коды из вопроса и успешных результатов инструментов."""
-    codes = set(find_codes(question))
-
-    for step in steps:
-        if step.error is None and step.result is not None:
-            text = json.dumps(step.result, ensure_ascii=False)
-            codes.update(find_codes(text))
-
-    return codes
-
-
-def quantity_is_explicit(question: str, qty: int) -> bool:
-    """Проверяет явно указанное количество с обозначением штук.
-
-    Числа без единиц измерения не считаются подтверждённым количеством.
-    """
-    if type(qty) is not int or qty <= 0:
-        return False
-
-    quantities = re.findall(
-        r"(?<![\w-])([0-9]+)\s*(?:штук(?:и|а)?|шт\.?)(?!\w)",
-        question,
-        flags=re.IGNORECASE,
-    )
-    return str(qty) in quantities
 
 
 def tools_report_no_data(steps: list[ToolStep]) -> bool:

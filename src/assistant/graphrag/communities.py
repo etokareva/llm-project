@@ -11,11 +11,16 @@ def detect_communities(graph: nx.DiGraph) -> list[Community]:
 
     Каждый узел входит ровно в одно сообщество. Поле `summary` здесь остаётся пустым.
     """
-    
+
     if graph.number_of_nodes() == 0:
         return []
 
-    undirected = graph.to_undirected()
+    # Для Louvain суммируем встречные веса, сохраняя вклад обоих направлений.
+    undirected = nx.Graph()
+    undirected.add_nodes_from(sorted(graph.nodes))
+    for source, target, attributes in sorted(graph.edges(data=True)):
+        previous = undirected.get_edge_data(source, target, {}).get("weight", 0)
+        undirected.add_edge(source, target, weight=previous + attributes.get("weight", 1))
 
     if undirected.number_of_edges() == 0:
         groups = [{node} for node in sorted(undirected.nodes)]
@@ -31,17 +36,14 @@ def detect_communities(graph: nx.DiGraph) -> list[Community]:
         key=lambda nodes: tuple(nodes),
     )
 
-    return [
-        Community(community_id=index, nodes=nodes)
-        for index, nodes in enumerate(ordered_groups)
-    ]
+    return [Community(community_id=index, nodes=nodes) for index, nodes in enumerate(ordered_groups)]
 
 
 def summarize_community(community: Community, graph: nx.DiGraph, llm: LLMClient) -> str:
     """Сводка сообщества не длиннее 150 слов: какие сущности входят, как связаны, что встречается чаще.
 
     Все числа считает код по весам рёбер и передаёт модели готовыми. Модель их только формулирует.
-    """    
+    """
     context = build_community_context(community, graph)
 
     response = llm.chat(
@@ -82,10 +84,7 @@ def build_community_context(community: Community, graph: nx.DiGraph) -> str:
     """
     subgraph = graph.subgraph(community.nodes)
 
-    entities = [
-        f"{node}: {attributes['name']}"
-        for node, attributes in sorted(subgraph.nodes(data=True))
-    ]
+    entities = [f"{node}: {attributes['name']}" for node, attributes in sorted(subgraph.nodes(data=True))]
 
     facts = []
     failures: dict[str, int] = {}
@@ -96,9 +95,7 @@ def build_community_context(community: Community, graph: nx.DiGraph) -> str:
         subject_name = subgraph.nodes[subject]["name"]
         target_name = subgraph.nodes[target]["name"]
 
-        facts.append(
-            f"{subject_name} -{relation_type}-> {target_name}; вес: {weight}"
-        )
+        facts.append(f"{subject_name} -{relation_type}-> {target_name}; вес: {weight}")
 
         if relation_type == "FAILED":
             failures[target_name] = failures.get(target_name, 0) + weight
@@ -124,33 +121,18 @@ def build_failure_statistics(failures: dict[str, int]) -> list[str]:
     Вывод относится только к внутренним связям текущего сообщества.
     """
     if not failures:
-        return [
-            "Внутри сообщества связей FAILED нет. "
-            "Это не означает отсутствия отказов вне сообщества."
-        ]
+        return ["Внутри сообщества связей FAILED нет. Это не означает отсутствия отказов вне сообщества."]
 
     ranked = sorted(
         failures.items(),
         key=lambda item: (-item[1], item[0]),
     )
     maximum = ranked[0][1]
-    leaders = [
-        name for name, count in ranked
-        if count == maximum
-    ]
+    leaders = [name for name, count in ranked if count == maximum]
 
     return [
         "Ранжирование компонентов по убыванию суммарного веса FAILED:",
-        *[
-            f"{name}: {count}"
-            for name, count in ranked
-        ],
-        (
-            f"Максимальный суммарный вес FAILED: {maximum}. "
-            f"Компоненты с этим весом: {', '.join(leaders)}."
-        ),
-        (
-            "Это статистика внутренних связей сообщества, "
-            "а не обязательно всей продуктовой линейки."
-        ),
+        *[f"{name}: {count}" for name, count in ranked],
+        (f"Максимальный суммарный вес FAILED: {maximum}. Компоненты с этим весом: {', '.join(leaders)}."),
+        ("Это статистика внутренних связей сообщества, а не обязательно всей продуктовой линейки."),
     ]

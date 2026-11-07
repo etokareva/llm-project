@@ -63,6 +63,9 @@ def add_relation(graph: nx.DiGraph, relation: Relation, chunk_id: str) -> None:
     if not relation.matches_schema():
         return
 
+    for entity in (relation.subject, relation.object):
+        add_entity(graph, entity, chunk_id)
+
     subject_id = relation.subject.node_id
     object_id = relation.object.node_id
 

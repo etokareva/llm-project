@@ -1,7 +1,8 @@
 """Два режима поиска по графу. Требования FR-4, FR-5 и FR-10."""
 
 import json
-from itertools import combinations
+import re
+from itertools import combinations, pairwise
 
 import networkx as nx
 
@@ -72,7 +73,7 @@ def local_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
         text=response.content,
         sources=sources,
         facts=facts,
-        refused="не найдено" in response.content.lower(),
+        refused=is_refusal(response.content),
     )
 
 
@@ -105,8 +106,13 @@ def global_search(question: str, kb: KnowledgeBase, llm: LLMClient) -> Answer:
     return Answer(
         text=text,
         sources=sorted(sources),
-        refused="не найдено" in text.lower(),
+        refused=is_refusal(text),
     )
+
+
+def is_refusal(text: str) -> bool:
+    """Распознаёт явные сообщения об отсутствии сведений, независимо от рода."""
+    return re.search(r"\b(?:не\s+найден[оаы]?|нет\s+(?:данных|сведений|информации))\b", text, re.IGNORECASE) is not None
 
 
 def find_anchors(question: str, kb: KnowledgeBase) -> list[str] | None:
@@ -146,7 +152,7 @@ def select_local_edges(
     Направление выбранных связей сохраняется как в исходном графе.
     Для нескольких опор дополнительно включает цепочки замен деталей.
     """
-    undirected = graph.to_undirected()
+    undirected = graph.to_undirected(as_view=True)
     selected: set[tuple[str, str]] = set()
 
     if len(anchors) == 1:
@@ -164,7 +170,7 @@ def select_local_edges(
                 end,
                 cutoff=3,
             ):
-                for subject, target in zip(path, path[1:], strict=False):
+                for subject, target in pairwise(path):
                     if graph.has_edge(subject, target):
                         selected.add((subject, target))
                     if graph.has_edge(target, subject):
@@ -185,10 +191,7 @@ def add_replacement_edges(
     Изменяет selected. Посещённые узлы учитывает, чтобы не зациклиться.
     """
     nodes = {node for edge in selected for node in edge}
-    pending = [
-        node for node in sorted(nodes)
-        if graph.nodes[node]["type"] == "Part"
-    ]
+    pending = [node for node in sorted(nodes) if graph.nodes[node]["type"] == "Part"]
     visited: set[str] = set()
 
     while pending:
@@ -221,10 +224,7 @@ def build_local_context(
         subject_name = graph.nodes[subject]["name"]
         target_name = graph.nodes[target]["name"]
 
-        fact = (
-            f"{len(facts) + 1}. "
-            f"{subject_name} -{attributes['type']}-> {target_name}"
-        )
+        fact = f"{len(facts) + 1}. {subject_name} -{attributes['type']}-> {target_name}"
         added_length = len(fact) + (1 if facts else 0)
 
         if total_length + added_length > 8000:
@@ -259,7 +259,7 @@ def map_community(
                     "Верни JSON с полями answer и score. "
                     "score — целое число от 0 до 10. "
                     "Если сводка не содержит сведений для ответа, "
-                    "верни answer=\"\" и score=0. "
+                    'верни answer="" и score=0. '
                     "Сообщение об отсутствии данных не является полезным ответом. "
                     "Для положительной оценки приведи конкретные факты, "
                     "относящиеся к вопросу. "
@@ -322,10 +322,7 @@ def reduce_partials(
     llm: LLMClient,
 ) -> str:
     """Объединяет полезные частичные ответы одним вызовом модели."""
-    context = "\n\n".join(
-        f"{index}. {answer}"
-        for index, answer in enumerate(partials, start=1)
-    )
+    context = "\n\n".join(f"{index}. {answer}" for index, answer in enumerate(partials, start=1))
 
     response = llm.chat(
         [
@@ -343,9 +340,7 @@ def reduce_partials(
             },
             {
                 "role": "user",
-                "content": (
-                    f"Частичные ответы:\n{context}\n\nВопрос: {question}"
-                ),
+                "content": (f"Частичные ответы:\n{context}\n\nВопрос: {question}"),
             },
         ]
     )
