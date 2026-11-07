@@ -122,7 +122,11 @@ def parse_response(content: str) -> dict:
     for item in data["relations"]:
         if not isinstance(item, dict):
             raise ValueError("Связь должна быть объектом")
-        if item.get("type") not in RELATION_SIGNATURES:
+        relation_type = item.get("type")
+        if (
+            not isinstance(relation_type, str)
+            or relation_type not in RELATION_SIGNATURES
+        ):
             raise ValueError("Неизвестный тип связи")
         for key in ("subject_type", "object_type"):
             if item.get(key) not in ENTITY_TYPES:

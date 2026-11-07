@@ -169,18 +169,69 @@ def find_answer_errors(
     question: str,
     steps: list[ToolStep],
 ) -> list[str]:
-    """Находит неизвестные коды и неподтверждённые цены и остатки.
-
-    Цены распознаёт по обозначениям рублей, количества — по шт./штук.
-    Числовые значения сверяет с успешными результатами инструментов.
-    """
-    errors = []
+    """Проверяет коды, цены и количества в итоговом ответе."""
     known_codes = collect_known_codes(question, steps)
+    prices, quantities = collect_supported_numbers(steps)
+    answer_prices, answer_quantities = extract_answer_numbers(text)
 
-    for code in find_codes(text):
-        if code not in known_codes:
-            errors.append(f"неизвестный код {code}")
+    errors = [
+        f"неизвестный код {code}"
+        for code in find_codes(text)
+        if code not in known_codes
+    ]
+    errors.extend(
+        f"неподтверждённая цена {value}"
+        for value in sorted(answer_prices - prices)
+    )
+    errors.extend(
+        f"неподтверждённое количество {value}"
+        for value in sorted(answer_quantities - quantities)
+    )
 
+    return errors
+
+
+def extract_answer_numbers(text: str) -> tuple[set[str], set[str]]:
+    """Находит цены и количества в поддерживаемых форматах записи.
+
+    Использует единицы измерения и подписи «цена», «остаток», «в наличии».
+    Возвращает нормализованные значения без повторов.
+    """
+    number = r"([0-9]+(?:[ \u00a0\u202f][0-9]{3})*(?:[.,][0-9]+)?)"
+
+    price_patterns = (
+        number + r"\s*(?:руб(?:лей|ля|ль)?\.?|₽)",
+        r"\bцен[аыу]\s*(?::|=|—|-|составляет)?\s*" + number,
+    )
+    quantity_patterns = (
+        number + r"\s*(?:штук[аи]?|шт\.?)(?!\w)",
+        (
+            r"\bостат(?:ок|ка)\b"
+            r"(?:\s+на\s+складе)?"
+            r"\s*(?::|=|—|-|составляет|равен)?\s*"
+            + number
+        ),
+        r"\bв\s+наличии\s*(?::|=|—|-)?\s*" + number,
+    )
+
+    prices = {
+        normalize_number(value)
+        for pattern in price_patterns
+        for value in re.findall(pattern, text, flags=re.IGNORECASE)
+    }
+    quantities = {
+        normalize_number(value)
+        for pattern in quantity_patterns
+        for value in re.findall(pattern, text, flags=re.IGNORECASE)
+    }
+
+    return prices, quantities
+    
+
+def collect_supported_numbers(
+    steps: list[ToolStep],
+) -> tuple[set[str], set[str]]:
+    """Собирает цены и количества из успешных результатов инструментов."""
     prices: set[str] = set()
     quantities: set[str] = set()
 
@@ -188,32 +239,18 @@ def find_answer_errors(
         if step.error is not None or step.result is None:
             continue
 
-        if step.tool == "get_price" and "price_rub" in step.result:
-            prices.add(normalize_number(str(step.result["price_rub"])))
+        result = step.result
 
-        if step.tool in ("check_stock", "create_service_order"):
-            if "qty" in step.result:
-                quantities.add(normalize_number(str(step.result["qty"])))
+        if step.tool == "get_price" and "price_rub" in result:
+            prices.add(normalize_number(str(result["price_rub"])))
 
-    number = r"([0-9]+(?:[ \u00a0\u202f][0-9]{3})*(?:[.,][0-9]+)?)"
+        if (
+            step.tool in ("check_stock", "create_service_order")
+            and "qty" in result
+        ):
+            quantities.add(normalize_number(str(result["qty"])))
 
-    for value in re.findall(
-        number + r"\s*(?:руб(?:лей|ля|ль)?\.?|₽)",
-        text,
-        flags=re.IGNORECASE,
-    ):
-        if normalize_number(value) not in prices:
-            errors.append(f"неподтверждённая цена {value}")
-
-    for value in re.findall(
-        number + r"\s*(?:шт(?:ук[аи]?)?\.?)",
-        text,
-        flags=re.IGNORECASE,
-    ):
-        if normalize_number(value) not in quantities:
-            errors.append(f"неподтверждённое количество {value}")
-
-    return errors
+    return prices, quantities
 
 
 def normalize_number(value: str) -> str:
@@ -388,24 +425,18 @@ def collect_known_codes(question: str, steps: list[ToolStep]) -> set[str]:
 
 
 def quantity_is_explicit(question: str, qty: int) -> bool:
-    """Проверяет положительное целое количество среди чисел вопроса.
+    """Проверяет явно указанное количество с обозначением штук.
 
-    Исключает коды оборудования, деталей, ошибок и регламентов,
-    чтобы их цифры не принимались за количество.
+    Числа без единиц измерения не считаются подтверждённым количеством.
     """
     if type(qty) is not int or qty <= 0:
         return False
 
-    text = question
-    for code in find_codes(question):
-        text = re.sub(
-            re.escape(code),
-            "",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-    quantities = re.findall(r"(?<!\w)[0-9]+(?!\w)", text)
+    quantities = re.findall(
+        r"(?<![\w-])([0-9]+)\s*(?:штук(?:и|а)?|шт\.?)(?!\w)",
+        question,
+        flags=re.IGNORECASE,
+    )
     return str(qty) in quantities
 
 
