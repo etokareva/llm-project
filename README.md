@@ -189,3 +189,4 @@ make eval-extraction
 | [`docs/theory.md`](docs/theory.md) | графы знаний и Graph RAG со ссылками на статьи |
 | [`docs/submission.md`](docs/submission.md) | состав команды, что сдавать, отчёт, защита |
 | [`docs/rubric.md`](docs/rubric.md) | как выставляются 20 баллов |
+| [`docs/reproduce-llamacpp.md`](docs/reproduce-llamacpp.md) | запуск llama.cpp и воспроизведение итоговых результатов |
